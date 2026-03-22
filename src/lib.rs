@@ -34,9 +34,9 @@ pub enum Kind {
 with_builder!(
     pub struct SessionEntry {
         pub name: #required LocaleString,
-        pub comment: #optional LocaleString,
         pub kind: #required Kind,
-        pub desktop_names: #optional String,
+        pub comment: LocaleString,
+        pub desktop_names: String,
     }
 );
 

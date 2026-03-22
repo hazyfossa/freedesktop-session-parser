@@ -2,11 +2,11 @@
 macro_rules! with_builder {
     (
         $vis:vis struct $name:ident {
-            $($fvis:vis $key:ident : #$kind:meta $value:path,)*
+            $($fvis:vis $key:ident : $(#$kind:meta)? $value:path,)*
         }
     ) => { paste::paste! {
         $vis struct $name {
-            $($fvis $key : $crate::with_builder!(@repr $kind $value),)*
+            $($fvis $key : $crate::with_builder!(@repr $($kind)? $value),)*
         }
 
         struct [<$name Builder>] {
@@ -29,7 +29,7 @@ macro_rules! with_builder {
 
             fn finalize<E: snafu::FromString>(self) -> Result<$name, E> {
                 Ok($name {$(
-                    $key: $crate::with_builder!(@finalize $kind self.$key),
+                    $key: $crate::with_builder!(@finalize $($kind)? self.$key),
                 )*})
             }
         }
@@ -37,7 +37,7 @@ macro_rules! with_builder {
     }};
 
     (@repr required $value:ty) => { $value };
-    (@repr optional $value:ty) => { Option<$value> };
+    (@repr $value:ty) => { Option<$value> };
 
     (@finalize required $self:ident.$key:ident) => {
         $self.$key.whatever_context(
@@ -46,6 +46,6 @@ macro_rules! with_builder {
         )?
     };
 
-    (@finalize optional $self:ident.$key:ident) => { $self.$key };
+    (@finalize $self:ident.$key:ident) => { $self.$key };
 
 }
