@@ -1,9 +1,6 @@
 mod utils;
 
-use std::{
-    collections::HashMap,
-    io::{self, BufReader, Lines, Read},
-};
+use std::io::{self, BufRead, BufReader, Lines, Read};
 
 use snafu::{OptionExt, Snafu, ensure_whatever, whatever};
 
@@ -21,10 +18,12 @@ pub enum ParseError {
     },
 }
 
-pub struct LocaleString {
-    default: String,
-    lc_lookup: HashMap<String, String>,
-}
+// pub struct LocaleString {
+//     default: String,
+//     lc_lookup: HashMap<String, String>,
+// }
+
+type LocaleString = String;
 
 pub enum Kind {
     X11,
@@ -34,10 +33,10 @@ pub enum Kind {
 
 with_builder!(
     pub struct SessionEntry {
-        name: #required LocaleString,
-        comment: #optional LocaleString,
-        kind: #required Kind,
-        desktop_names: #optional Vec<String>,
+        pub name: #required LocaleString,
+        pub comment: #optional LocaleString,
+        pub kind: #required Kind,
+        pub desktop_names: #optional String,
     }
 );
 
@@ -47,6 +46,13 @@ struct Parser<R> {
 }
 
 impl<R: Read> Parser<R> {
+    fn new(reader: BufReader<R>) -> Self {
+        Self {
+            builder: SessionEntryBuilder::new(),
+            reader: reader.lines(),
+        }
+    }
+
     // Reads the next line, skipping comments
     fn read_line(&mut self) -> Result<String, ParseError> {
         let line = self.reader.next().ok_or(ParseError::EOF)??;
@@ -79,9 +85,28 @@ impl<R: Read> Parser<R> {
                 "XSession" => Kind::X11,
                 other => whatever!("Unsupported entry kind: {other}"),
             }),
+            "Name" => self.builder.set_name(v.to_string()),
+            "Comment" => self.builder.set_comment(v.to_string()),
+            "DesktopNames" => self.builder.set_desktop_names(v.to_string()),
             _skip_other => return Ok(()),
         };
 
         Ok(())
     }
+
+    fn read_all(mut self) -> Result<SessionEntry, ParseError> {
+        loop {
+            match self.read_next() {
+                Ok(()) => (),
+                Err(ParseError::EOF) => break,
+                Err(e) => return Err(e),
+            }
+        }
+
+        self.builder.finalize()
+    }
+}
+
+pub fn parse(reader: BufReader<impl Read>) -> Result<SessionEntry, ParseError> {
+    Parser::new(reader).read_all()
 }

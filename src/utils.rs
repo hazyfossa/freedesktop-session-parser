@@ -2,11 +2,11 @@
 macro_rules! with_builder {
     (
         $vis:vis struct $name:ident {
-            $($key:ident : #$kind:meta $value:path,)*
+            $($fvis:vis $key:ident : #$kind:meta $value:path,)*
         }
     ) => { paste::paste! {
         $vis struct $name {
-            $($key : $crate::with_builder!(@repr $kind $value),)*
+            $($fvis $key : $crate::with_builder!(@repr $kind $value),)*
         }
 
         struct [<$name Builder>] {
@@ -22,7 +22,7 @@ macro_rules! with_builder {
 
             $(
                 fn [<set_ $key:lower>](&mut self, value: $value) -> &mut Self {
-                    std::mem::replace(&mut self.$key, Some(value));
+                    self.$key = self.$key.replace(value);
                     self
                 }
             )*
