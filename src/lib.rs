@@ -1,8 +1,10 @@
+#[cfg(feature = "env")]
+pub mod env;
+
 mod utils;
 
-use std::io::{self, BufRead, BufReader, Lines, Read};
-
 use snafu::{OptionExt, Snafu, ensure_whatever, whatever};
+use std::io::{self, BufRead, BufReader, Lines, Read};
 
 #[derive(Debug, Snafu)]
 

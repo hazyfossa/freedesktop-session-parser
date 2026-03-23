@@ -15,9 +15,7 @@ macro_rules! with_builder {
 
         impl [<$name Builder>] {
             fn new() -> Self {
-                Self {$(
-                    $key: None,
-                )*}
+                Self {$( $key: None, )*}
             }
 
             $(
@@ -47,5 +45,37 @@ macro_rules! with_builder {
     };
 
     (@finalize $self:ident.$key:ident) => { $self.$key };
+}
 
+// if we ever decide to make this a common utility
+// implement a way to have exhaustive enums
+#[macro_export]
+macro_rules! strenum {
+    ($vis:vis $name:ident {
+        $($field:ident = $value:literal,)*
+    }) => {
+        $vis enum $name {
+            $($field,)*
+            Other(String)
+        }
+
+        impl std::str::FromStr for $name {
+            type Err = std::convert::Infallible;
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Ok(match s {
+                    $($value => Self::$field,)*
+                    other => Self::Other(other.to_string()),
+                })
+            }
+        }
+
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $(Self::$field => f.write_str($value),)*
+                    Self::Other(other) => f.write_str(&other),
+                }
+            }
+        }
+    };
 }
