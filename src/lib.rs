@@ -4,7 +4,14 @@ pub mod env;
 mod utils;
 
 use snafu::{OptionExt, Snafu, ensure_whatever, whatever};
-use std::io::{self, BufRead, BufReader, Lines, Read};
+use std::{
+    fs::File,
+    io::{self, BufRead, BufReader, Lines, Read},
+    path::PathBuf,
+};
+
+const X11_SESSION_PATH: &str = "/usr/share/xsessions";
+const WAYLAND_SESSION_PATH: &str = "/usr/share/wayland-sessions";
 
 #[derive(Debug, Snafu)]
 
@@ -27,16 +34,27 @@ pub enum ParseError {
 
 type LocaleString = String;
 
-pub enum Kind {
+crate::strenum!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub SessionKind {
+        Unspecified,
+        TTY,
+        X11,
+        Wayland,
+        Mir,
+        Web,
+    }
+);
+
+pub enum KindHint {
     X11,
-    // most commonly wayland
-    Application,
+    Any,
 }
 
 with_builder!(
     pub struct SessionEntry {
         pub name: #required LocaleString,
-        pub kind: #required Kind,
+        pub kind_hint: #required KindHint,
         pub comment: LocaleString,
         pub desktop_names: String,
     }
@@ -82,9 +100,9 @@ impl<R: Read> Parser<R> {
         let (k, v) = (k.trim_end(), v.trim_start());
 
         match k {
-            "Type" => self.builder.set_kind(match v {
-                "Application" => Kind::Application,
-                "XSession" => Kind::X11,
+            "Type" => self.builder.set_kind_hint(match v {
+                "Application" => KindHint::Any,
+                "XSession" => KindHint::X11,
                 other => whatever!("Unsupported entry kind: {other}"),
             }),
             "Name" => self.builder.set_name(v.to_string()),
@@ -111,4 +129,26 @@ impl<R: Read> Parser<R> {
 
 pub fn parse(reader: BufReader<impl Read>) -> Result<SessionEntry, ParseError> {
     Parser::new(reader).read_all()
+}
+
+#[derive(Debug, Snafu)]
+pub enum SessionReadError {
+    #[snafu(context(false))]
+    ParseError { source: ParseError },
+    #[snafu(display("cannot read session definition file"))]
+    FileError { source: io::Error },
+}
+
+pub fn get(kind: SessionKind, name: &str) -> Result<SessionEntry, ParseError> {
+    let path: PathBuf = match kind {
+        SessionKind::X11 => X11_SESSION_PATH,
+        SessionKind::Wayland => WAYLAND_SESSION_PATH,
+        other => panic!("There is no standart location for {other} session"),
+    }
+    .into();
+
+    let filename = format!("{name}.desktop");
+    let file = File::open(path.join(filename))?;
+
+    parse(BufReader::with_capacity(4096, file))
 }
