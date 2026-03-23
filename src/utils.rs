@@ -52,7 +52,7 @@ macro_rules! with_builder {
 #[macro_export]
 macro_rules! strenum {
     ($vis:vis $name:ident {
-        $($field:ident = $value:literal,)*
+        $($field:ident $(= $value:literal)?,)*
     }) => {
         $vis enum $name {
             $($field,)*
@@ -63,7 +63,10 @@ macro_rules! strenum {
             type Err = std::convert::Infallible;
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 Ok(match s {
-                    $($value => Self::$field,)*
+                    $(
+                        $crate::strenum!(@field_string $field $($value)?)
+                        => Self::$field,
+                    )*
                     other => Self::Other(other.to_string()),
                 })
             }
@@ -72,10 +75,15 @@ macro_rules! strenum {
         impl std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    $(Self::$field => f.write_str($value),)*
+                    $(Self::$field => f.write_str(
+                        $crate::strenum!(@field_string $field $($value)?)
+                    ),)*
                     Self::Other(other) => f.write_str(&other),
                 }
             }
         }
     };
+
+    (@field_string $field:ident $value:literal) => { $value };
+    (@field_string $field:ident) => { paste::paste! { stringify!([<$field:lower>]) } };
 }
