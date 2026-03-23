@@ -51,9 +51,13 @@ macro_rules! with_builder {
 // implement a way to have exhaustive enums
 #[macro_export]
 macro_rules! strenum {
-    ($vis:vis $name:ident {
-        $($field:ident $(= $value:literal)?,)*
-    }) => {
+    (
+        $(#[$($attributes:tt)*])?
+        $vis:vis $name:ident {
+            $($field:ident $(= $value:literal)?,)*
+        }
+    ) => {
+        $(#[$($attributes)*])?
         $vis enum $name {
             $($field,)*
             Other(String)
