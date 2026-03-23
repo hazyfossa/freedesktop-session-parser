@@ -1,9 +1,8 @@
-#[cfg(feature = "env")]
-pub mod env;
-
 mod utils;
 
+use envy::define_env;
 use snafu::{OptionExt, Snafu, ensure_whatever, whatever};
+
 use std::{
     fs::File,
     io::{self, BufRead, BufReader, Lines, Read},
@@ -12,6 +11,65 @@ use std::{
 
 const X11_SESSION_PATH: &str = "/usr/share/xsessions";
 const WAYLAND_SESSION_PATH: &str = "/usr/share/wayland-sessions";
+
+// pub struct LocaleString {
+//     default: String,
+//     lc_lookup: HashMap<String, String>,
+// }
+
+type LocaleString = String;
+
+// https://www.freedesktop.org/software/systemd/man/latest/pam_systemd.html#type=
+define_env!(SessionKind = "XDG_SESSION_TYPE");
+crate::strenum!(
+    #[derive(Debug, PartialEq, Eq)]
+    pub SessionKind {
+        Unspecified,
+        TTY,
+        X11,
+        Wayland,
+        Mir,
+        Web,
+    }
+);
+
+// TODO: where are those session-entry-types specified?
+pub enum KindHint {
+    X11,
+    Any,
+}
+
+pub struct DesktopNames(pub String);
+
+with_builder!(
+    pub struct SessionEntry {
+        pub name: #required LocaleString,
+        pub kind_hint: #required KindHint,
+        pub comment: LocaleString,
+        pub desktop_names: DesktopNames,
+    }
+);
+
+// https://www.freedesktop.org/software/systemd/man/latest/pam_systemd.html#desktop=
+define_env!(pub Desktop(String) = "XDG_SESSION_DESKTOP");
+
+// https://specifications.freedesktop.org/desktop-entry/latest/recognized-keys.html#id-1.7.6
+// see: OnlyShowIn, NotShowIn
+define_env!(pub DesktopList(String) = "XDG_CURRENT_DESKTOP");
+
+impl DesktopList {
+    /// Will return None if the list contains more than one entry
+    pub fn as_desktop(&self) -> Option<Desktop> {
+        match &self.0.contains(";") {
+            true => None,
+            false => Some(Desktop(self.0.clone())),
+        }
+    }
+
+    pub fn to_vec(self) -> Vec<String> {
+        self.split(";").map(String::from).collect()
+    }
+}
 
 #[derive(Debug, Snafu)]
 
@@ -26,39 +84,6 @@ pub enum ParseError {
         message: String,
     },
 }
-
-// pub struct LocaleString {
-//     default: String,
-//     lc_lookup: HashMap<String, String>,
-// }
-
-type LocaleString = String;
-
-crate::strenum!(
-    #[derive(Debug, PartialEq, Eq)]
-    pub SessionKind {
-        Unspecified,
-        TTY,
-        X11,
-        Wayland,
-        Mir,
-        Web,
-    }
-);
-
-pub enum KindHint {
-    X11,
-    Any,
-}
-
-with_builder!(
-    pub struct SessionEntry {
-        pub name: #required LocaleString,
-        pub kind_hint: #required KindHint,
-        pub comment: LocaleString,
-        pub desktop_names: String,
-    }
-);
 
 struct Parser<R> {
     builder: SessionEntryBuilder,
@@ -107,7 +132,9 @@ impl<R: Read> Parser<R> {
             }),
             "Name" => self.builder.set_name(v.to_string()),
             "Comment" => self.builder.set_comment(v.to_string()),
-            "DesktopNames" => self.builder.set_desktop_names(v.to_string()),
+            "DesktopNames" => self
+                .builder
+                .set_desktop_names(crate::DesktopNames(v.to_string())),
             _skip_other => return Ok(()),
         };
 
@@ -139,7 +166,7 @@ pub enum SessionReadError {
     FileError { source: io::Error },
 }
 
-pub fn get(kind: SessionKind, name: &str) -> Result<SessionEntry, ParseError> {
+pub fn get_session_entry(kind: SessionKind, name: &str) -> Result<SessionEntry, ParseError> {
     let path: PathBuf = match kind {
         SessionKind::X11 => X11_SESSION_PATH,
         SessionKind::Wayland => WAYLAND_SESSION_PATH,
