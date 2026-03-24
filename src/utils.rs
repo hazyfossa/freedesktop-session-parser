@@ -40,6 +40,7 @@ macro_rules! with_builder {
     (@finalize required $self:ident.$key:ident) => {
         $self.$key.whatever_context(
             &format!("Required key {} not found",
+            // TODO: field names instead of rust names here
             stringify!($key))
         )?
     };

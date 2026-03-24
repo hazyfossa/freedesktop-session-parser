@@ -39,14 +39,16 @@ pub enum KindHint {
     Any,
 }
 
-pub struct DesktopNames(pub String);
-
 with_builder!(
     pub struct SessionEntry {
         pub name: #required LocaleString,
         pub kind_hint: #required KindHint,
+        // NOTE: deviating the spec, this is required, as a session is never DBusActivatable
+        pub executable: #required PathBuf,
+        pub working_directory: PathBuf,
+        // TODO: does it make sense to check TryExec?
         pub comment: LocaleString,
-        pub desktop_names: DesktopNames,
+        pub desktop_names: DesktopList,
     }
 );
 
@@ -58,8 +60,7 @@ define_env!(pub Desktop(String) = "XDG_SESSION_DESKTOP");
 define_env!(pub DesktopList(String) = "XDG_CURRENT_DESKTOP");
 
 impl DesktopList {
-    /// Will return None if the list contains more than one entry
-    pub fn as_desktop(&self) -> Option<Desktop> {
+    pub fn as_single_desktop(&self) -> Option<Desktop> {
         match &self.0.contains(";") {
             true => None,
             false => Some(Desktop(self.0.clone())),
@@ -130,11 +131,15 @@ impl<R: Read> Parser<R> {
                 "XSession" => KindHint::X11,
                 other => whatever!("Unsupported entry kind: {other}"),
             }),
+
+            "Exec" => self.builder.set_executable(v.into()),
+            "Path" => self.builder.set_working_directory(v.into()),
             "Name" => self.builder.set_name(v.to_string()),
             "Comment" => self.builder.set_comment(v.to_string()),
             "DesktopNames" => self
                 .builder
-                .set_desktop_names(crate::DesktopNames(v.to_string())),
+                .set_desktop_names(crate::DesktopList(v.to_string())),
+
             _skip_other => return Ok(()),
         };
 

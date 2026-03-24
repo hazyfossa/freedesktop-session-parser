@@ -12,3 +12,4 @@ The following spec features will not be supported:
 # todo
 - [ ] locale strings support
 - [x] environment integration
+- [ ] async (not a priority)
