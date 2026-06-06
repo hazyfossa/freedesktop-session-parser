@@ -1,3 +1,5 @@
+# merged with `flint`
+
 # freedesktop-session-parser
 A simple parser for linux session entries. It implements only the subset of `desktop-entry` specification relevant for session managers.
 
